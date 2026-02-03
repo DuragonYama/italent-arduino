@@ -47,7 +47,8 @@ int16_t toInt16(uint8_t high, uint8_t low) {
 Adafruit_NeoPixel Pixel(NUM_PIXELS, PIN_NEO_PIXEL, NEO_GRB + NEO_KHZ800);
 
 // REPLACE WITH YOUR ESP RECEIVER'S MAC ADDRESS
-uint8_t broadcastAddress[] = { 0x30, 0xAE, 0xA4, 0x05, 0xBD, 0x3C };
+//uint8_t broadcastAddress[] = { 0x30, 0xAE, 0xA4, 0x05, 0xBD, 0x3C };
+uint8_t broadcastAddress[] = { 0x98, 0xCD, 0xAC, 0x50, 0x33, 0xC8 };
 
 typedef struct {
   uint8_t leftSpeed;
@@ -71,6 +72,14 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   // Serial.print(macStr);
   // Serial.print(" send status:\t");
   // Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+}
+
+int xyToLed(int x, int y) {
+  if (y % 2 == 0) {
+    return y * 8 + x;
+  } else {
+    return y * 8 + (7 - x);
+  }
 }
 
 void setup() {
@@ -144,37 +153,54 @@ void ReadSensor(int16_t *xp, int16_t *yp) {
 }
 
 void loop() {
-
   int16_t x, y, delta;
   ReadSensor(&x, &y);
 
+  // deadzone zodat het stil kan staan
+  if (abs(x) < 500) x = 0;
+  if (abs(y) < 500) y = 0;
 
-  Pixel.setPixelColor(1, Pixel.Color(255, 0, 0));
-  Pixel.setBrightness(15);
+  // Clear all pixels
+  Pixel.clear();
+  
+  // SWAPPED: Y-axis determines ROW (left/right tilt)
+  int row = map(y, -10000, 10000, 3, 0);
+  
+  // SWAPPED: X-axis determines COLUMN (forward/back position)
+  int col = map(x, -10000, 10000, 0, 7);
+  
+  // Compensate for snaking - flip column for odd rows so all rows go the same direction
+  int actualCol = (row % 2 == 1) ? (7 - col) : col;
+  int ledIndex = xyToLed(actualCol, row);
+
+  // Light up main LED plus trail
+  Pixel.setPixelColor(ledIndex, Pixel.Color(100, 0, 0)); 
+  int prevCol = (row % 2 == 1) ? (actualCol < 7 ? actualCol + 1 : -1) : (actualCol > 0 ? actualCol - 1 : -1);
+  int nextCol = (row % 2 == 1) ? (actualCol > 0 ? actualCol - 1 : -1) : (actualCol < 7 ? actualCol + 1 : -1);
+  // dimmere lichtjes, vooran & achteraan
+  // if (prevCol >= 0) Pixel.setPixelColor(xyToLed(prevCol, row), Pixel.Color(10, 10, 10));
+  // if (nextCol >= 0) Pixel.setPixelColor(xyToLed(nextCol, row), Pixel.Color(10, 10, 10));
+  
+  Pixel.setBrightness(20);
   Pixel.show();
 
+  // Rest of your motor control code
   uint8_t left = (uint8_t)map(abs(y), 0, 10000, 100, 250);
   uint8_t right = (uint8_t)map(abs(y), 0, 10000, 100, 250);
   delta = (int8_t)map(x, -10000, 10000, -75, 75);
-  left = max (0, min(left - delta, 250));
+  left = max(0, min(left - delta, 250));
   right = max(0, min(right + delta, 250));
+
   Serial.print(x);
   Serial.print(", ");
   Serial.print(y);
   Serial.print(", ");
   Serial.println(delta);
 
-  message.leftDirection =
-    message.rightDirection = y < 0;
+  message.leftDirection = message.rightDirection = y < 0;
   message.leftSpeed = left;
   message.rightSpeed = right;
 
   esp_err_t result = esp_now_send(0, (uint8_t *)&message, sizeof(message));
-
-  // if (result == ESP_OK) {
-  //   Serial.println("Sent with success");
-  // } else {
-  //   Serial.println("Error sending the data");
-  // }
-  delay(1);
+  delay(10);
 }

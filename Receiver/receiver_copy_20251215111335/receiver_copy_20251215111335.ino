@@ -41,14 +41,14 @@ esp_now_peer_info_t peerInfo;
 void OnDataReceive(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
   const uint8_t *mac = info->src_addr;  // sender MAC
 
-  Serial.print("From: ");
+  //Serial.print("From: ");
   for (int i = 0; i < 6; i++) {
-    Serial.printf("%02X%s", mac[i], (i < 5) ? ":" : "");
+    //Serial.printf("%02X%s", mac[i], (i < 5) ? ":" : "");
   }
-  Serial.printf("  len=%d\n", len);
+  //Serial.printf("  len=%d\n", len);
 
   memcpy(&message, data, len);
-  Serial.printf("%d %d %d %d \n", message.leftDirection, message.leftSpeed, message.rightDirection, message.rightSpeed);
+  //Serial.printf("%d %d %d %d \n", message.leftDirection, message.leftSpeed, message.rightDirection, message.rightSpeed);
 
   analogWrite(leftMotor.pwmPin, message.leftSpeed > 105 ? message.leftSpeed : 0);
   digitalWrite(leftMotor.directionPin, message.leftDirection);
